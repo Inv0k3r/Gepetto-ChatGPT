@@ -19,4 +19,10 @@
 - 使用selenium来进行认证，代码来自[LanLan69/easyChatGPT](https://github.com/LanLan69/easyChatGPT)
 - 由于Windows7不支持python3.9，无法使用`pypasser`，所以加了一个`solve_recaptcha`选项以手动点击验证码
 
+## 安装
+
+修改`Gepetto-ChatGPT.py`开头的config，配置账号密码
+
+把`Gepetto-ChatGPT.py`和`chatgpt.py`丢进ida plugins文件夹即可
+
 ![](demo.png)
