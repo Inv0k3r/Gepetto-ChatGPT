@@ -9,17 +9,17 @@ import os
 import re
 import textwrap
 import threading
-from revChatGPT.revChatGPT import Chatbot
+# from revChatGPT.revChatGPT import Chatbot
+from chatgpt import ChatClient
 
 config = {
-     "email": "<YOUR_EMAIL>",
-     "password": "<YOUR_PASSWORD>"#,
-    #"session_token": "",
-     #Use session_token or email/password. But the session_token has a very short validity
-    #"proxy": "127.0.0.1:7890"
+    "email": "***********",
+    "password": "*******************",
+    "proxy": "http://127.0.0.1:23333",
+    "solve_recaptcha": True # auto solve captcha
 }
 ZH_CN = True  # 是否使用中文代码解释 # Use Chinese explain
-
+CHATBOT = None
 
 # =============================================================================
 # Setup the context menu and hotkey in IDA
@@ -61,7 +61,9 @@ class Gepetto_CHATPlugin(idaapi.plugin_t):
                                              199)
         idaapi.register_action(rename_action)
         idaapi.attach_action_to_menu(self.rename_menu_path, self.rename_action_name, idaapi.SETMENU_APP)
-
+        # login bot
+        global CHATBOT
+        CHATBOT = ChatClient(username=config["email"], password=config["password"], proxy=config["proxy"], solve_recaptcha=config["solve_recaptcha"])
         # Register context menu actions
         self.menu = ContextMenuHooks()
         self.menu.hook()
@@ -126,7 +128,7 @@ class ExplainHandler(idaapi.action_handler_t):
         v = ida_hexrays.get_widget_vdui(ctx.widget)
         if ZH_CN:
             query_model_async(
-                "对下面的C语言伪代码函数进行分析 推测关于该函数的使用环境和预期目的详细的函数功能等信息 并为这个函数取一个新的名字 不要返回其他的内容 (开始前加上GPTSTART 结束后加上GPTEND字符串)\n"
+                "对下面的C语言伪代码函数进行分析，推测关于该函数的使用环境、预期目的、详细的函数功能等信息，并为这个函数取一个新的名字，用中文回复，不要返回其他的内容 (开始前加上GPTSTART 结束后加上GPTEND字符串)\n"
                 + str(decompiler_output),
                 functools.partial(comment_callback, address=idaapi.get_screen_ea(), view=v))
         else:
@@ -165,7 +167,7 @@ def rename_callback(address, view, response):
 
     # The rename function needs the start address of the function
     function_addr = idaapi.get_func(address).start_ea
-
+    print(names)
     replaced = []
     for n in names:
         if ida_hexrays.rename_lvar(function_addr, n, names[n]):
@@ -221,8 +223,9 @@ def query_model(query, cb):
     :param cb: Tu function to which the response will be passed to.
     """
     try:
-        chatbot = Chatbot(config, conversation_id=None)
-        response = chatbot.get_chat_response(query)['message']
+        global CHATBOT
+        chatbot = CHATBOT
+        response = chatbot.interact(query)
         if response.find("GPTSTART") == -1:
             raise Exception("Unexpected response: " + response)
         times = 1
@@ -232,7 +235,7 @@ def query_model(query, cb):
         while response.find("GPTEND") == -1:
             try:
                 times += 1
-                response = chatbot.get_chat_response("next")['message']
+                response = chatbot.interact("next")
                 if response.find("GPTSTART") != -1:
                     times = 99
                     raise Exception("Duplicate responses appear: " + response)
@@ -247,7 +250,7 @@ def query_model(query, cb):
                 if retry > 3:
                     raise Exception("Retry 3 times and the request still fails: " + response)
                 retry += 1
-        ida_kernwin.execute_sync(functools.partial(cb, response=data.replace('GPTEND', '').replace('GPTSTART', '')),
+        ida_kernwin.execute_sync(functools.partial(cb, response=response.replace('GPTEND', '').replace('GPTSTART', '')),
                                  ida_kernwin.MFF_WRITE)
     except Exception as e:
         print(f"General exception encountered while running the query: {str(e)}")

@@ -15,4 +15,8 @@
   ChatGPT的Token数量限制更宽 可以分析更长的函数 返回更多的分析结果
 
 - 分析结果增加中文支持
+
+- 使用selenium来进行认证，代码来自[LanLan69/easyChatGPT](https://github.com/LanLan69/easyChatGPT)
+- 由于Windows7不支持python3.9，无法使用`pypasser`，所以加了一个`solve_recaptcha`选项以手动点击验证码
+
 ![](demo.png)
