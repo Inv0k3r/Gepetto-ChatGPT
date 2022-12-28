@@ -21,7 +21,9 @@
 
 ## 安装
 
-修改`Gepetto-ChatGPT.py`开头的config，配置账号密码
+`pip install pypasser`
+
+修改`Gepetto-ChatGPT.py`开头的config，配置账号密码，如果无法安装`pypasser`，可以设置`solve_recaptcha`为`False`来手动过验证
 
 把`Gepetto-ChatGPT.py`和`chatgpt.py`丢进ida plugins文件夹即可
 

@@ -1,1 +1,4 @@
-pypasser
+idc==0.6.0
+PyPasser==0.0.5
+selenium==4.7.2
+undetected_chromedriver==3.1.7
