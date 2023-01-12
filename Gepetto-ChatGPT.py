@@ -10,7 +10,7 @@ import re
 import textwrap
 import threading
 # from revChatGPT.revChatGPT import Chatbot
-from chatgpt import ChatClient
+from chatgpt.chatgpt import ChatClient
 
 config = {
     "email": "***********",
@@ -31,6 +31,12 @@ class Gepetto_CHATPlugin(idaapi.plugin_t):
     explain_menu_path = "Edit/Gepetto_CHAT/Explain function_CHAT"
     rename_action_name = "Gepetto_CHAT:rename_function_CHAT"
     rename_menu_path = "Edit/Gepetto_CHAT/Rename variables_CHAT"
+    login_action_name = "Gepetto_CHAT:login_function_CHAT"
+    login_menu_path = "Edit/Gepetto_CHAT/Login function_CHAT"
+    sendcode_action_name = "Gepetto_CHAT:sendcode_function_CHAT"
+    sendcode_menu_path = "Edit/Gepetto_CHAT/sendcode function_CHAT"
+    
+
     wanted_name = 'Gepetto_CHAT'
     wanted_hotkey = ''
     comment = "Uses ChatGPT to enrich the decompiler's output"
@@ -61,9 +67,30 @@ class Gepetto_CHATPlugin(idaapi.plugin_t):
                                              199)
         idaapi.register_action(rename_action)
         idaapi.attach_action_to_menu(self.rename_menu_path, self.rename_action_name, idaapi.SETMENU_APP)
-        # login bot
-        global CHATBOT
-        CHATBOT = ChatClient(username=config["email"], password=config["password"], proxy=config["proxy"], solve_recaptcha=config["solve_recaptcha"])
+
+        # Login action
+        login_action = idaapi.action_desc_t(self.login_action_name,
+                                            'Login ChatGPT',
+                                            LoginHandler(),
+                                            "Ctrl+Alt+L",
+                                            "Login ChatGPT",
+                                            199
+                                            )
+        idaapi.register_action(login_action)
+        idaapi.attach_action_to_menu(self.login_menu_path, self.login_action_name, idaapi.SETMENU_APP)
+
+        # Send current function c code action
+        sendcode_action = idaapi.action_desc_t(self.sendcode_action_name,
+                                            'Send code to ChatGPT',
+                                            SendcodeHandler(),
+                                            "Ctrl+Alt+S",
+                                            "Send code to ChatGPT",
+                                            199
+                                            )
+        idaapi.register_action(sendcode_action)
+        idaapi.attach_action_to_menu(self.sendcode_menu_path, self.sendcode_action_name, idaapi.SETMENU_APP)
+        # Send current function disassmble code acton
+
         # Register context menu actions
         self.menu = ContextMenuHooks()
         self.menu.hook()
@@ -76,6 +103,8 @@ class Gepetto_CHATPlugin(idaapi.plugin_t):
     def term(self):
         idaapi.detach_action_from_menu(self.explain_menu_path, self.explain_action_name)
         idaapi.detach_action_from_menu(self.rename_menu_path, self.rename_action_name)
+        idaapi.detach_action_from_menu(self.login_menu_path, self.login_action_name)
+        idaapi.detach_action_from_menu(self.sendcode_menu_path, self.sendcode_action_name)
         if self.menu:
             self.menu.unhook()
         return
@@ -89,6 +118,8 @@ class ContextMenuHooks(idaapi.UI_Hooks):
         if idaapi.get_widget_type(form) == idaapi.BWN_PSEUDOCODE:
             idaapi.attach_action_to_popup(form, popup, Gepetto_CHATPlugin.explain_action_name, "Gepetto_CHAT/")
             idaapi.attach_action_to_popup(form, popup, Gepetto_CHATPlugin.rename_action_name, "Gepetto_CHAT/")
+            idaapi.attach_action_to_popup(form, popup, Gepetto_CHATPlugin.login_action_name, "Gepetto_CHAT/")
+            idaapi.attach_action_to_popup(form, popup, Gepetto_CHATPlugin.sendcode_action_name, "Gepetto_CHAT/")
 
 
 # -----------------------------------------------------------------------------
@@ -210,6 +241,45 @@ class RenameHandler(idaapi.action_handler_t):
     def update(self, ctx):
         return idaapi.AST_ENABLE_ALWAYS
 
+class LoginHandler(idaapi.action_handler_t):
+    """
+    """
+    def __init__(self) -> None:
+        idaapi.action_handler_t.__init__(self)
+    
+    def activate(self, ctx):
+        # login bot
+        global CHATBOT
+        CHATBOT = ChatClient(username=config["email"], password=config["password"], proxy=config["proxy"], solve_recaptcha=config["solve_recaptcha"])
+
+    # This action is always available.
+    def update(self, ctx):
+        return idaapi.AST_ENABLE_ALWAYS
+
+def sendcode_callback(address, view, response):
+    return
+
+class SendcodeHandler(idaapi.action_handler_t):
+    """
+    This handler is tasked with querying ChatGPT for an explanation of the
+    given function. Once the reply is received, it is added as a function
+    comment.
+    """
+
+    def __init__(self):
+        idaapi.action_handler_t.__init__(self)
+
+    def activate(self, ctx):
+        decompiler_output = ida_hexrays.decompile(idaapi.get_screen_ea())
+        v = ida_hexrays.get_widget_vdui(ctx.widget)
+        query_model_async(
+            str(decompiler_output),
+            functools.partial(comment_callback, address=idaapi.get_screen_ea(), view=v))
+        return 1
+
+    # This action is always available.
+    def update(self, ctx):
+        return idaapi.AST_ENABLE_ALWAYS
 
 # =============================================================================
 # ChatGPT interaction
@@ -224,6 +294,9 @@ def query_model(query, cb):
     """
     try:
         global CHATBOT
+        if CHATBOT == None:
+            print("Login first")
+            return
         chatbot = CHATBOT
         response = chatbot.interact(query)
         if response.find("GPTSTART") == -1:

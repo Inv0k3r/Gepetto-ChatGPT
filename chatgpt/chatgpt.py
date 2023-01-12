@@ -89,8 +89,10 @@ class ChatClient:
         t = Thread(target=self.update_session)
         t.setDaemon(True)
         t.start()
+        login_t = Thread(target=self.__login, args=[username, password, solve_recaptcha])
+        login_t.start()
 
-        self.__login(username, password, solve_recaptcha)
+        # self.__login(username, password, solve_recaptcha)
 
     def __login(self, username: str, password: str, solve_recaptcha: bool) -> None:
         """To enter system"""
